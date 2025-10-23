@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance - {{ league.name }} - NQ Tenpin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .attendance-grid-container {
+        overflow-x: auto;
+        max-width: 100%;
+        margin-top: 20px;
+    }
+    
+    .attendance-table {
+        width: auto;
+        min-width: 100%;
+    }
+    
+    .fixed-column-left {
+        position: sticky;
+        left: 0;
+        z-index: 10;
+        background-color: #1a1a1a;
+        color: #ffffff;
+    }
+    
+    .fixed-column-right {
+        position: sticky;
+        right: 0;
+        z-index: 10;
+        background-color: #1a1a1a;
+    }
+    
+    .week-header {
+        min-width: 60px;
+        font-size: 11px;
+    }
+    
+    .attendance-cell {
+        width: 60px;
+        height: 40px;
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+    }
+    
+    .fix-btn {
+        position: absolute;
+        bottom: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 2px 6px;
+        font-size: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2>
+                <i class="fas fa-calendar-check me-2"></i>
+                Attendance & Payments: {{ league.name }}
+            </h2>
+            <p class="text-muted">
+                {{ league.start_date.strftime('%B %d, %Y') }} - {{ league.finish_date.strftime('%B %d, %Y') }}
+                | Social Fee: ${{ "%.2f"|format(league.social_fee) }} 
+                | Bowling Fee: ${{ "%.2f"|format(league.bowling_fee) }}
+                {% if league.has_fines %}| Fine: ${{ "%.2f"|format(league.fine_amount) }}{% endif %}
+            </p>
+        </div>
+        <div class="col-auto">
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="window.print()">
+                    <i class="fas fa-print me-2"></i>Print
+                </button>
+                <button class="btn btn-success" id="export-excel">
+                    <i class="fas fa-file-excel me-2"></i>Export
+                </button>
+                <a href="{{ url_for('leagues') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <h6 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Quick Instructions</h6>
+        <ul class="mb-0 small">
+            <li><strong>Left Click:</strong> Mark as PAID (green ✓)</li>
+            <li><strong>Right Click:</strong> Mark as MISSED (red X)</li>
+            <li><strong>Double Click:</strong> Enter custom payment amount</li>
+            <li><strong>FIX Button:</strong> Mark fine as paid (orange 🔧)</li>
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Attendance Grid -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Payment Tracking Grid</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="attendance-grid-container">
+                <table class="attendance-table table table-bordered mb-0">
+                    <thead>
+                        <tr>
+                            <th class="fixed-column-left">Bowler</th>
+                            {% for week in weeks %}
+                            <th class="text-center week-header">
+                                W{{ week.number }}<br>
+                                <small>{{ week.date.strftime('%d/%m') }}</small>
+                            </th>
+                            {% endfor %}
+                            <th class="fixed-column-right">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set current_team = '' %}
+                        {% for bl in bowler_leagues %}
+                            {% if league.league_type == 'teams' %}
+                                {% set this_team = bl.team.name if bl.team else 'UNASSIGNED' %}
+                                {% if this_team != current_team %}
+                                    {% set current_team = this_team %}
+                                    <tr style="background-color: #000000;">
+                                        <td class="fixed-column-left" style="background-color: #000000 !important; color: #e91e8c !important; font-weight: bold; font-size: 14px; padding: 8px;">
+                                            {{ current_team }}
+                                        </td>
+                                        <td colspan="{{ weeks|length + 1 }}" style="background-color: #000000;"></td>
+                                    </tr>
+                                {% endif %}
+                            {% endif %}
+                            
+                            <tr>
+                                <td class="fixed-column-left bowler-name">
+                                    <strong>{{ bl.bowler.first_name }} {{ bl.bowler.surname }}</strong>
+                                    {% if bl.bowler.tba_status == 'invalid' %}
+                                    <span class="badge bg-danger ms-2" title="Invalid TBA Registration">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                {% for week in weeks %}
+                                {% set attendance = attendance_records.get(bl.bowler_id, {}).get(week.number) %}
+                                <td class="attendance-cell" 
+                                    data-bowler="{{ bl.bowler_id }}"
+                                    data-league="{{ league.id }}"
+                                    data-week="{{ week.number }}"
+                                    data-status="{{ attendance.status if attendance else 'none' }}"
+                                    data-amount="{{ attendance.amount_paid if attendance else 0 }}">
+                                    {% if attendance %}
+                                        {% if attendance.status == 'paid' %}
+                                            <i class="fas fa-check attendance-icon text-success"></i>
+                                        {% elif attendance.status == 'missed' %}
+                                            <i class="fas fa-times attendance-icon text-danger"></i>
+                                        {% elif attendance.status == 'fixed' %}
+                                            <i class="fas fa-wrench attendance-icon text-warning"></i>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                                <td class="fixed-column-right balance-column" id="balance-{{ bl.bowler_id }}">
+                                    {% if bl.balance_owing > 0 %}
+                                        <span class="text-danger">
+                                            ${{ "%.2f"|format(bl.balance_owing) }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-success">$0.00</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-success">$0.00</h4>
+                    <p class="text-muted mb-0">Total Collected</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-danger">$0.00</h4>
+                    <p class="text-muted mb-0">Total Outstanding</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-warning">$0.00</h4>
+                    <p class="text-muted mb-0">Fines Pending</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-info">{{ bowler_leagues|length }}</h4>
+                    <p class="text-muted mb-0">Total Bowlers</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize the attendance grid functionality
+    $(document).ready(function() {
+        // The grid functionality is loaded from main.js
+        console.log('Attendance grid loaded for league {{ league.id }}');
+    });
+</script>
+{% endblock %}

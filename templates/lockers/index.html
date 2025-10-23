@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Lockers - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2><i class="fas fa-key me-2"></i>Locker Management</h2>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('create_locker') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Add Locker
+            </a>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="text-success">{{ lockers|selectattr("status", "equalto", "available")|list|length }}</h3>
+                    <p class="text-muted mb-0">Available</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="text-danger">{{ lockers|selectattr("status", "equalto", "occupied")|list|length }}</h3>
+                    <p class="text-muted mb-0">Occupied</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="text-warning">{{ lockers|selectattr("status", "equalto", "maintenance")|list|length }}</h3>
+                    <p class="text-muted mb-0">Maintenance</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="text-info">{{ lockers|length }}</h3>
+                    <p class="text-muted mb-0">Total Lockers</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover datatable">
+                    <thead>
+                        <tr>
+                            <th>Locker #</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                            <th>Current Renter</th>
+                            <th>Rental Period</th>
+                            <th>Rate</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for locker in lockers %}
+                        <tr>
+                            <td><strong>#{{ locker.number }}</strong></td>
+                            <td>{{ locker.location or '-' }}</td>
+                            <td>
+                                {% if locker.status == 'available' %}
+                                    <span class="badge bg-success">Available</span>
+                                {% elif locker.status == 'occupied' %}
+                                    <span class="badge bg-danger">Occupied</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Maintenance</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set current_rental = locker.rentals.filter_by(is_active=True).first() %}
+                                {% if current_rental %}
+                                    {{ current_rental.bowler.first_name }} {{ current_rental.bowler.surname }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ locker.rental_period|capitalize or '-' }}</td>
+                            <td>${{ "%.2f"|format(locker.rental_rate) }}</td>
+                            <td>
+                                {% if locker.status == 'available' %}
+                                    <a href="{{ url_for('rent_locker', id=locker.id) }}" 
+                                       class="btn btn-sm btn-success" title="Rent">
+                                        <i class="fas fa-user-plus"></i>
+                                    </a>
+                                {% endif %}
+                                <a href="{{ url_for('edit_locker', id=locker.id) }}" 
+                                   class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('delete_locker', id=locker.id) }}" 
+                                      style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger delete-confirm" 
+                                            title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

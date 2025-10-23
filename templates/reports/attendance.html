@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Report - {{ league.name }} - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2>
+                <i class="fas fa-chart-bar me-2"></i>
+                Attendance Report: {{ league.name }}
+            </h2>
+            <p class="text-muted">
+                {{ league.start_date.strftime('%B %d, %Y') }} - {{ league.finish_date.strftime('%B %d, %Y') }}
+            </p>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Print
+            </button>
+            <button class="btn btn-success" id="export-excel">
+                <i class="fas fa-file-excel me-2"></i>Export
+            </button>
+            <a href="{{ url_for('reports') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="text-info">{{ report_data|length }}</h3>
+                    <p class="text-muted mb-0">Total Bowlers</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="text-success">{{ report_data|sum(attribute='paid_weeks') }}</h3>
+                    <p class="text-muted mb-0">Total Paid Weeks</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="text-danger">{{ report_data|sum(attribute='missed_weeks') }}</h3>
+                    <p class="text-muted mb-0">Total Missed Weeks</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h3 class="text-warning">
+                        {% set total_weeks = report_data|sum(attribute='paid_weeks') + report_data|sum(attribute='missed_weeks') %}
+                        {% if total_weeks > 0 %}
+                            {{ ((report_data|sum(attribute='paid_weeks') / total_weeks) * 100)|round(1) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </h3>
+                    <p class="text-muted mb-0">Attendance Rate</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Report Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Bowler Attendance Details</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="report-table">
+                    <thead>
+                        <tr>
+                            <th>Bowler Name</th>
+                            <th>Registration #</th>
+                            <th>Paid Weeks</th>
+                            <th>Missed Weeks</th>
+                            <th>Attendance Rate</th>
+                            <th>Balance Owing</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for data in report_data %}
+                        <tr>
+                            <td>
+                                <strong>{{ data.bowler.first_name }} {{ data.bowler.surname }}</strong>
+                            </td>
+                            <td>{{ data.bowler.registration_number or '-' }}</td>
+                            <td>
+                                <span class="badge bg-success">{{ data.paid_weeks }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-danger">{{ data.missed_weeks }}</span>
+                            </td>
+                            <td>
+                                {% set total = data.paid_weeks + data.missed_weeks %}
+                                {% if total > 0 %}
+                                    {% set rate = (data.paid_weeks / total) * 100 %}
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar bg-success" role="progressbar" 
+                                             style="width: {{ rate }}%">
+                                            {{ rate|round(1) }}%
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if data.balance > 0 %}
+                                    <span class="text-danger font-weight-bold">
+                                        ${{ "%.2f"|format(data.balance) }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-success">$0.00</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if data.balance > 0 %}
+                                    <span class="badge bg-warning">Outstanding</span>
+                                {% else %}
+                                    <span class="badge bg-success">Paid</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-secondary">
+                            <th>TOTALS</th>
+                            <th>-</th>
+                            <th>{{ report_data|sum(attribute='paid_weeks') }}</th>
+                            <th>{{ report_data|sum(attribute='missed_weeks') }}</th>
+                            <th>-</th>
+                            <th class="text-danger">
+                                ${{ "%.2f"|format(report_data|sum(attribute='balance')) }}
+                            </th>
+                            <th>-</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Attendance Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="attendanceChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Payment Status</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="paymentChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Attendance Distribution Chart
+var ctx1 = document.getElementById('attendanceChart').getContext('2d');
+var attendanceChart = new Chart(ctx1, {
+    type: 'pie',
+    data: {
+        labels: ['Paid Weeks', 'Missed Weeks'],
+        datasets: [{
+            data: [
+                {{ report_data|sum(attribute='paid_weeks') }},
+                {{ report_data|sum(attribute='missed_weeks') }}
+            ],
+            backgroundColor: ['#28a745', '#dc3545']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: { color: '#ffffff' }
+            }
+        }
+    }
+});
+
+// Payment Status Chart
+var ctx2 = document.getElementById('paymentChart').getContext('2d');
+var paymentChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+        labels: ['Paid', 'Outstanding'],
+        datasets: [{
+            data: [
+                {{ report_data|selectattr("balance", "equalto", 0)|list|length }},
+                {{ report_data|selectattr("balance", "gt", 0)|list|length }}
+            ],
+            backgroundColor: ['#28a745', '#ffc107']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: { color: '#ffffff' }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

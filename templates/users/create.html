@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Create User - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-lg-6 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-plus me-2"></i>Create New User
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('create_user') }}" class="needs-validation" novalidate>
+                        
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username *</label>
+                            <input type="text" class="form-control" id="username" name="username" 
+                                   required pattern="[a-zA-Z0-9_]{3,20}" 
+                                   placeholder="Enter username">
+                            <div class="invalid-feedback">
+                                Username must be 3-20 characters (letters, numbers, underscore only).
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address *</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   required placeholder="user@example.com">
+                            <div class="invalid-feedback">
+                                Please provide a valid email address.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password *</label>
+                            <input type="password" class="form-control" id="password" name="password" 
+                                   required minlength="8" placeholder="Minimum 8 characters">
+                            <div class="invalid-feedback">
+                                Password must be at least 8 characters long.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm Password *</label>
+                            <input type="password" class="form-control" id="confirm_password" 
+                                   name="confirm_password" required placeholder="Re-enter password">
+                            <div class="invalid-feedback">
+                                Passwords do not match.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="role" class="form-label">User Role *</label>
+                            <select class="form-select" id="role" name="role" required>
+                                <option value="">Select role...</option>
+                                <option value="staff">Staff</option>
+                                <option value="admin">Administrator</option>
+                            </select>
+                            <div class="invalid-feedback">
+                                Please select a user role.
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <h6 class="alert-heading">Role Permissions:</h6>
+                            <ul class="mb-0">
+                                <li><strong>Staff:</strong> Can manage leagues, bowlers, attendance, and view reports</li>
+                                <li><strong>Administrator:</strong> Full access including user management and system settings</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('users') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-check me-2"></i>Create User
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Password confirmation validation
+document.getElementById('confirm_password').addEventListener('input', function() {
+    var password = document.getElementById('password').value;
+    var confirmPassword = this.value;
+    
+    if (password !== confirmPassword) {
+        this.setCustomValidity('Passwords do not match');
+    } else {
+        this.setCustomValidity('');
+    }
+});
+
+document.getElementById('password').addEventListener('input', function() {
+    var confirmPassword = document.getElementById('confirm_password').value;
+    if (confirmPassword && this.value !== confirmPassword) {
+        document.getElementById('confirm_password').setCustomValidity('Passwords do not match');
+    } else {
+        document.getElementById('confirm_password').setCustomValidity('');
+    }
+});
+</script>
+{% endblock %}

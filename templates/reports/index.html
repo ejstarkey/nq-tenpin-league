@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4"><i class="fas fa-chart-bar me-2"></i>Reports Dashboard</h2>
+
+    <div class="row">
+        <!-- Financial Reports -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-dollar-sign me-2"></i>Financial Reports
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Generate financial summaries and payment tracking reports.</p>
+                    <div class="list-group">
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary" 
+                           data-bs-toggle="modal" data-bs-target="#financialModal">
+                            <i class="fas fa-chart-line me-2"></i>League Financial Summary
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-receipt me-2"></i>Outstanding Balances
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-coins me-2"></i>Revenue Report
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attendance Reports -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-check me-2"></i>Attendance Reports
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Track bowler attendance and participation statistics.</p>
+                    <div class="list-group">
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary"
+                           data-bs-toggle="modal" data-bs-target="#attendanceModal">
+                            <i class="fas fa-user-check me-2"></i>League Attendance Summary
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-chart-pie me-2"></i>Participation Statistics
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-exclamation-triangle me-2"></i>Missed Weeks Report
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Registration Reports -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-id-card me-2"></i>Registration Reports
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Monitor TBA registration compliance and status.</p>
+                    <div class="list-group">
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-check-circle me-2"></i>TBA Compliance Report
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-times-circle me-2"></i>Invalid Registrations
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-clock me-2"></i>Expiring Registrations
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Locker Reports -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-key me-2"></i>Locker Reports
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Track locker occupancy and rental revenue.</p>
+                    <div class="list-group">
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-percentage me-2"></i>Occupancy Report
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-money-bill me-2"></i>Rental Revenue
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <i class="fas fa-calendar-times me-2"></i>Expiring Rentals
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Report Builder -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-cogs me-2"></i>Custom Report Builder
+            </h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">Create custom reports with specific criteria and date ranges.</p>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#customReportModal">
+                <i class="fas fa-plus-circle me-2"></i>Build Custom Report
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Financial Report Modal -->
+<div class="modal fade" id="financialModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title">Select League for Financial Report</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <select class="form-select" id="financialLeagueSelect">
+                    <option value="">Select a league...</option>
+                    <!-- Leagues would be populated here -->
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="generateFinancialReport()">
+                    Generate Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Report Modal -->
+<div class="modal fade" id="attendanceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark">
+            <div class="modal-header">
+                <h5 class="modal-title">Select League for Attendance Report</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <select class="form-select" id="attendanceLeagueSelect">
+                    <option value="">Select a league...</option>
+                    <!-- Leagues would be populated here -->
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="generateAttendanceReport()">
+                    Generate Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function generateFinancialReport() {
+    var leagueId = document.getElementById('financialLeagueSelect').value;
+    if (leagueId) {
+        window.location.href = '/reports/financial/' + leagueId;
+    }
+}
+
+function generateAttendanceReport() {
+    var leagueId = document.getElementById('attendanceLeagueSelect').value;
+    if (leagueId) {
+        window.location.href = '/reports/attendance/' + leagueId;
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Add Locker - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-lg-6 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-plus me-2"></i>Add New Locker
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('create_locker') }}" class="needs-validation" novalidate>
+                        
+                        <div class="mb-3">
+                            <label for="number" class="form-label">Locker Number *</label>
+                            <input type="text" class="form-control" id="number" name="number" 
+                                   placeholder="e.g., A1, 101" required>
+                            <div class="invalid-feedback">
+                                Please provide a locker number.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="location" name="location" 
+                                   placeholder="e.g., Main Hall, Back Room">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="rental_period" class="form-label">Rental Period *</label>
+                            <select class="form-select" id="rental_period" name="rental_period" required>
+                                <option value="">Select...</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="quarterly">Quarterly</option>
+                                <option value="annual">Annual</option>
+                            </select>
+                            <div class="invalid-feedback">
+                                Please select a rental period.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="rental_rate" class="form-label">Rental Rate ($) *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" id="rental_rate" 
+                                       name="rental_rate" step="0.01" min="0" 
+                                       placeholder="0.00" required>
+                                <div class="invalid-feedback">
+                                    Please provide a rental rate.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('lockers') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-check me-2"></i>Add Locker
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

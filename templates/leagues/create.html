@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Create League - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-magic me-2"></i>League Creation Wizard
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('create_league') }}" class="needs-validation" novalidate>
+                        
+                        <!-- Step 1: Basic Information -->
+                        <fieldset class="mb-4">
+                            <legend class="text-primary h5">Basic Information</legend>
+                            
+                            <div class="mb-3">
+                                <label for="name" class="form-label">League Name *</label>
+                                <input type="text" class="form-control" id="name" name="name" 
+                                       placeholder="e.g., Monday Night Mixed League" required>
+                                <div class="invalid-feedback">
+                                    Please provide a league name.
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="start_date" class="form-label">Start Date *</label>
+                                    <input type="date" class="form-control" id="start_date" 
+                                           name="start_date" required>
+                                    <div class="invalid-feedback">
+                                        Please select a start date.
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="finish_date" class="form-label">Finish Date *</label>
+                                    <input type="date" class="form-control" id="finish_date" 
+                                           name="finish_date" required>
+                                    <div class="invalid-feedback">
+                                        Please select a finish date.
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+                        
+                        <!-- Step 2: Fees Configuration -->
+                        <fieldset class="mb-4">
+                            <legend class="text-primary h5">Fees Configuration</legend>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="social_fee" class="form-label">
+                                        Social Fee ($) *
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="Weekly social fee per bowler"></i>
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" class="form-control" id="social_fee" 
+                                               name="social_fee" step="0.01" min="0" 
+                                               placeholder="0.00" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="bowling_fee" class="form-label">
+                                        Bowling Fee ($) *
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="Weekly bowling/lane fee per bowler"></i>
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" class="form-control" id="bowling_fee" 
+                                               name="bowling_fee" step="0.01" min="0" 
+                                               placeholder="0.00" required>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="has_fines" 
+                                           name="has_fines">
+                                    <label class="form-check-label" for="has_fines">
+                                        This league incurs fines for missed weeks
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3" id="fine_amount_group" style="display: none;">
+                                <label for="fine_amount" class="form-label">Fine Amount ($)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control" id="fine_amount" 
+                                           name="fine_amount" step="0.01" min="0" 
+                                           placeholder="0.00">
+                                </div>
+                            </div>
+                        </fieldset>
+                        
+                        <!-- Step 3: League Type -->
+                        <fieldset class="mb-4">
+                            <legend class="text-primary h5">League Type</legend>
+                            
+                            <div class="mb-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="league_type" 
+                                           id="singles" value="singles" checked>
+                                    <label class="form-check-label" for="singles">
+                                        <strong>Singles League</strong>
+                                        <small class="d-block text-muted">
+                                            Individual bowlers compete independently
+                                        </small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="league_type" 
+                                           id="teams" value="teams">
+                                    <label class="form-check-label" for="teams">
+                                        <strong>Team League</strong>
+                                        <small class="d-block text-muted">
+                                            Bowlers compete in teams
+                                        </small>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3" id="team_size_group" style="display: none;">
+                                <label for="players_per_team" class="form-label">
+                                    Players per Team
+                                </label>
+                                <input type="number" class="form-control" id="players_per_team" 
+                                       name="players_per_team" min="2" max="10" 
+                                       placeholder="e.g., 4">
+                            </div>
+                        </fieldset>
+                        
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('leagues') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-check me-2"></i>Create League
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Form validation
+    (function() {
+        'use strict';
+        window.addEventListener('load', function() {
+            var forms = document.getElementsByClassName('needs-validation');
+            var validation = Array.prototype.filter.call(forms, function(form) {
+                form.addEventListener('submit', function(event) {
+                    if (form.checkValidity() === false) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+        }, false);
+    })();
+    
+    // Date validation
+    document.getElementById('finish_date').addEventListener('change', function() {
+        var startDate = document.getElementById('start_date').value;
+        var finishDate = this.value;
+        
+        if (startDate && finishDate && startDate >= finishDate) {
+            this.setCustomValidity('Finish date must be after start date');
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Bowlers - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2><i class="fas fa-users me-2"></i>Bowlers Management</h2>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('create_bowler') }}" class="btn btn-primary">
+                <i class="fas fa-user-plus me-2"></i>Add Bowler
+            </a>
+            <a href="{{ url_for('import_bowlers') }}" class="btn btn-success">
+                <i class="fas fa-file-csv me-2"></i>Import CSV
+            </a>
+            <button id="verify-tba-btn" class="btn btn-warning">
+                <i class="fas fa-sync-alt me-2"></i>Verify TBA
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover datatable" id="bowlers-table">
+                    <thead>
+                        <tr>
+                            <th>Registration #</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>TBA Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bowler in bowlers %}
+                        <tr>
+                            <td>{{ bowler.registration_number or '-' }}</td>
+                            <td>
+                                <strong>{{ bowler.first_name }} {{ bowler.surname }}</strong>
+                            </td>
+                            <td>{{ bowler.email or '-' }}</td>
+                            <td>{{ bowler.phone or '-' }}</td>
+                            <td>
+                                {% if bowler.tba_status == 'valid' %}
+                                    <span class="tba-status valid">Valid</span>
+                                {% elif bowler.tba_status == 'invalid' %}
+                                    <span class="tba-status invalid">Invalid</span>
+                                {% else %}
+                                    <span class="tba-status pending">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('edit_bowler', id=bowler.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('delete_bowler', id=bowler.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger delete-confirm">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

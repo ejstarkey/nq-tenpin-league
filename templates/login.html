@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Login - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="login-card">
+                <div class="login-logo">
+                    <img src="{{ url_for('static', filename='img/logo.png') }}" alt="NQ Tenpin" height="80">
+                </div>
+                <h2>League Management System</h2>
+                
+                <form method="POST" action="{{ url_for('login') }}" class="needs-validation" novalidate>
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary">
+                                <i class="fas fa-user text-secondary"></i>
+                            </span>
+                            <input type="text" class="form-control" id="username" name="username" required autofocus>
+                            <div class="invalid-feedback">
+                                Please enter your username.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-dark border-secondary">
+                                <i class="fas fa-lock text-secondary"></i>
+                            </span>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <div class="invalid-feedback">
+                                Please enter your password.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-sign-in-alt me-2"></i> Login
+                        </button>
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <div class="text-center text-secondary">
+                    <small>© 2025 NQ Tenpin Atherton</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

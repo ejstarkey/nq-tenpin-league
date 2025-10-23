@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center align-items-center min-vh-100">
+        <div class="col-md-8 text-center">
+            <div class="mb-4">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="NQ Tenpin" height="120" class="mb-4">
+                <h1 class="display-4 mb-3" style="color: #e91e8c;">NQ Tenpin Atherton</h1>
+                <h2 class="h3 mb-4" style="color: #52b3d9;">League Management System</h2>
+                <p class="lead text-secondary mb-5">
+                    Professional bowling league attendance tracking and payment management
+                </p>
+            </div>
+            
+            <div class="row justify-content-center mb-5">
+                <div class="col-md-10">
+                    <div class="row text-center">
+                        <div class="col-md-4 mb-3">
+                            <div class="feature-box p-3">
+                                <i class="fas fa-bowling-ball fa-3x mb-3" style="color: #e91e8c;"></i>
+                                <h5>League Management</h5>
+                                <p class="text-secondary small">Create and manage multiple bowling leagues</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="feature-box p-3">
+                                <i class="fas fa-calendar-check fa-3x mb-3" style="color: #52b3d9;"></i>
+                                <h5>Attendance Tracking</h5>
+                                <p class="text-secondary small">Interactive payment and attendance grid</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="feature-box p-3">
+                                <i class="fas fa-chart-line fa-3x mb-3" style="color: #e91e8c;"></i>
+                                <h5>Comprehensive Reports</h5>
+                                <p class="text-secondary small">Financial and attendance analytics</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg px-5">
+                    <i class="fas fa-sign-in-alt me-2"></i>Staff Login
+                </a>
+            </div>
+            
+            <hr class="my-5" style="border-color: #4a4a4a;">
+            
+            <div class="text-secondary">
+                <small>© 2025 NQ Tenpin Atherton | Version 1.0</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.feature-box {
+    background: linear-gradient(135deg, #3a3a3a 0%, #1a1a1a 100%);
+    border-radius: 10px;
+    transition: transform 0.3s ease;
+}
+
+.feature-box:hover {
+    transform: translateY(-5px);
+}
+</style>
+{% endblock %}

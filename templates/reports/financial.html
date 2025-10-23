@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Financial Report - {{ league.name }} - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2>
+                <i class="fas fa-dollar-sign me-2"></i>
+                Financial Report: {{ league.name }}
+            </h2>
+            <p class="text-muted">
+                {{ league.start_date.strftime('%B %d, %Y') }} - {{ league.finish_date.strftime('%B %d, %Y') }}
+            </p>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Print
+            </button>
+            <button class="btn btn-success" id="export-excel">
+                <i class="fas fa-file-excel me-2"></i>Export
+            </button>
+            <a href="{{ url_for('reports') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Financial Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h3 class="text-success">${{ "%.2f"|format(total_received) }}</h3>
+                    <p class="text-muted mb-0">Total Received</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-danger">
+                <div class="card-body text-center">
+                    <h3 class="text-danger">${{ "%.2f"|format(total_outstanding) }}</h3>
+                    <p class="text-muted mb-0">Total Outstanding</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h3 class="text-info">${{ "%.2f"|format(total_expected) }}</h3>
+                    <p class="text-muted mb-0">Total Expected</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h3 class="text-warning">
+                        {% if total_expected > 0 %}
+                            {{ ((total_received / total_expected) * 100)|round(1) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </h3>
+                    <p class="text-muted mb-0">Collection Rate</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fee Structure -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">League Fee Structure</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <p><strong>Social Fee:</strong> ${{ "%.2f"|format(league.social_fee) }} per week</p>
+                </div>
+                <div class="col-md-4">
+                    <p><strong>Bowling Fee:</strong> ${{ "%.2f"|format(league.bowling_fee) }} per week</p>
+                </div>
+                <div class="col-md-4">
+                    <p><strong>Fine Amount:</strong> 
+                        {% if league.has_fines %}
+                            ${{ "%.2f"|format(league.fine_amount) }} per missed week
+                        {% else %}
+                            No fines applied
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revenue Breakdown -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Revenue Trend</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="revenueChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Payment Methods</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="paymentMethodChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outstanding Balances Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Outstanding Balances by Bowler</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover datatable">
+                    <thead>
+                        <tr>
+                            <th>Bowler Name</th>
+                            <th>Registration #</th>
+                            <th>Weeks Missed</th>
+                            <th>Fees Owed</th>
+                            <th>Fines Owed</th>
+                            <th>Total Outstanding</th>
+                            <th>Last Payment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bowler_league in league.bowler_leagues %}
+                        {% if bowler_league.balance_owing > 0 %}
+                        <tr>
+                            <td>
+                                <strong>{{ bowler_league.bowler.first_name }} {{ bowler_league.bowler.surname }}</strong>
+                            </td>
+                            <td>{{ bowler_league.bowler.registration_number or '-' }}</td>
+                            <td>
+                                {% set missed = bowler_league.bowler.attendances.filter_by(league_id=league.id, status='missed').count() %}
+                                <span class="badge bg-danger">{{ missed }}</span>
+                            </td>
+                            <td>${{ "%.2f"|format(missed * (league.social_fee + league.bowling_fee)) }}</td>
+                            <td>
+                                {% if league.has_fines %}
+                                    ${{ "%.2f"|format(missed * league.fine_amount) }}
+                                {% else %}
+                                    $0.00
+                                {% endif %}
+                            </td>
+                            <td class="text-danger font-weight-bold">
+                                ${{ "%.2f"|format(bowler_league.balance_owing) }}
+                            </td>
+                            <td>
+                                {% set last_payment = bowler_league.bowler.attendances.filter_by(league_id=league.id, status='paid').order_by(Attendance.date.desc()).first() %}
+                                {% if last_payment %}
+                                    {{ last_payment.date.strftime('%d/%m/%Y') }}
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Financial Projections -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Financial Projections</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>If All Outstanding Balances Are Collected:</h6>
+                    <p class="h4 text-success">
+                        Total Revenue: ${{ "%.2f"|format(total_received + total_outstanding) }}
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <h6>Projected Loss from Uncollected Fees:</h6>
+                    <p class="h4 text-danger">
+                        Potential Loss: ${{ "%.2f"|format(total_outstanding) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Revenue Trend Chart
+var ctx1 = document.getElementById('revenueChart').getContext('2d');
+var revenueChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6'],
+        datasets: [{
+            label: 'Revenue',
+            data: [1200, 1900, 2500, 2800, 3200, 3500], // This would be actual data
+            borderColor: '#e91e8c',
+            backgroundColor: 'rgba(233, 30, 140, 0.1)',
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    color: '#ffffff',
+                    callback: function(value) {
+                        return '$' + value;
+                    }
+                },
+                grid: {
+                    color: 'rgba(255, 255, 255, 0.1)'
+                }
+            },
+            x: {
+                ticks: { color: '#ffffff' },
+                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            }
+        },
+        plugins: {
+            legend: {
+                labels: { color: '#ffffff' }
+            }
+        }
+    }
+});
+
+// Payment Methods Chart
+var ctx2 = document.getElementById('paymentMethodChart').getContext('2d');
+var paymentMethodChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+        labels: ['Cash', 'Card', 'Transfer'],
+        datasets: [{
+            data: [45, 35, 20], // This would be actual data
+            backgroundColor: ['#28a745', '#52b3d9', '#ffc107']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: { color: '#ffffff' }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

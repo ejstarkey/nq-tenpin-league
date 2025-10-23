@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Dashboard</h1>
+    
+    <!-- Statistics Row -->
+    <div class="row">
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <h3>{{ total_leagues }}</h3>
+                <p>Active Leagues</p>
+                <a href="{{ url_for('leagues') }}" class="stretched-link"></a>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <h3>{{ total_bowlers }}</h3>
+                <p>Total Bowlers</p>
+                <a href="{{ url_for('bowlers') }}" class="stretched-link"></a>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <h3 id="valid-tba">{{ valid_tba }}</h3>
+                <p>Valid TBA Registrations</p>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card">
+                <h3 class="text-danger">{{ invalid_tba }}</h3>
+                <p>Invalid TBA Registrations</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content Row -->
+    <div class="row mt-4">
+        <!-- TBA Registration Status -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-id-card me-2"></i>TBA Registration Status
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="attendance-chart" height="200"></canvas>
+                    <div class="mt-3">
+                        <button id="verify-tba-btn" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-sync-alt me-2"></i>Verify All Registrations
+                        </button>
+                    </div>
+                    <div class="mt-2 text-center">
+                        <span id="valid-tba" class="d-none">{{ valid_tba }}</span>
+                        <span id="invalid-tba" class="d-none">{{ invalid_tba }}</span>
+                        <span id="pending-tba" class="d-none">{{ pending_tba }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Active Leagues -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bowling-ball me-2"></i>Active Leagues
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        {% for league in active_leagues %}
+                        <a href="{{ url_for('attendance', league_id=league.id) }}" 
+                           class="list-group-item list-group-item-action bg-dark border-secondary">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1 text-white">{{ league.name }}</h6>
+                                    <small class="text-muted">
+                                        {{ league.start_date.strftime('%b %d') }} - 
+                                        {{ league.finish_date.strftime('%b %d, %Y') }}
+                                    </small>
+                                </div>
+                                <span class="badge bg-primary">
+                                    {{ league.bowler_leagues.count() }} bowlers
+                                </span>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-3">
+                        <a href="{{ url_for('create_league') }}" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-plus me-2"></i>Create New League
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('create_bowler') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-user-plus me-2"></i>Add New Bowler
+                        </a>
+                        <a href="{{ url_for('import_bowlers') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-file-csv me-2"></i>Import Bowlers CSV
+                        </a>
+                        <a href="{{ url_for('create_league') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-plus-circle me-2"></i>Create League
+                        </a>
+                        <a href="{{ url_for('reports') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-chart-line me-2"></i>View Reports
+                        </a>
+                        <a href="{{ url_for('lockers') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-key me-2"></i>Manage Lockers
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Recent Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>User</th>
+                                    <th>Action</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in recent_logs %}
+                                <tr>
+                                    <td>
+                                        <small>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+                                    </td>
+                                    <td>{{ log.user.username if log.user else 'System' }}</td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ log.action }}</span>
+                                    </td>
+                                    <td>{{ log.details }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Dashboard-specific JavaScript can go here
+</script>
+{% endblock %}

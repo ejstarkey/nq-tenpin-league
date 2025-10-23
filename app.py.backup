@@ -1,0 +1,943 @@
+"""
+NQ Tenpin Bowling League Attendance Tracking System
+Flask Application - Port 2019
+Version 1.0
+"""
+
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, timedelta
+import os
+import csv
+import io
+import requests
+from functools import wraps
+import logging
+
+# Initialize Flask app
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nq-tenpin-secure-key-2025')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///nq_tenpin.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
+
+# Initialize extensions
+db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, 
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                   filename='nq_tenpin.log')
+
+# ============================================
+# DATABASE MODELS
+# ============================================
+
+class User(UserMixin, db.Model):
+    """Staff user model"""
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255))
+    role = db.Column(db.String(20), default='staff')  # admin or staff
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    # Audit trail relationship
+    audit_logs = db.relationship('AuditLog', backref='user', lazy='dynamic')
+
+class AuditLog(db.Model):
+    """Audit trail for all system actions"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    action = db.Column(db.String(100))
+    details = db.Column(db.Text)
+    ip_address = db.Column(db.String(50))
+
+class League(db.Model):
+    """League model"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    finish_date = db.Column(db.Date, nullable=False)
+    social_fee = db.Column(db.Float, default=0)
+    bowling_fee = db.Column(db.Float, default=0)
+    has_fines = db.Column(db.Boolean, default=False)
+    fine_amount = db.Column(db.Float, default=0)
+    league_type = db.Column(db.String(20))  # singles or teams
+    players_per_team = db.Column(db.Integer)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    teams = db.relationship('Team', backref='league', lazy='dynamic', cascade='all, delete-orphan')
+    bowler_leagues = db.relationship('BowlerLeague', backref='league', lazy='dynamic', cascade='all, delete-orphan')
+    attendances = db.relationship('Attendance', backref='league', lazy='dynamic', cascade='all, delete-orphan')
+
+class Team(db.Model):
+    """Team model for team leagues"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    league_id = db.Column(db.Integer, db.ForeignKey('league.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    members = db.relationship('BowlerLeague', backref='team', lazy='dynamic')
+
+class Bowler(db.Model):
+    """Bowler model"""
+    id = db.Column(db.Integer, primary_key=True)
+    registration_number = db.Column(db.String(50), unique=True)
+    first_name = db.Column(db.String(50), nullable=False)
+    surname = db.Column(db.String(50), nullable=False)
+    sex = db.Column(db.String(10))
+    email = db.Column(db.String(120))
+    birthday = db.Column(db.Date)
+    address = db.Column(db.String(200))
+    suburb = db.Column(db.String(100))
+    state = db.Column(db.String(20))
+    postcode = db.Column(db.String(10))
+    phone = db.Column(db.String(20))
+    tba_status = db.Column(db.String(20), default='pending')  # valid, invalid, pending
+    tba_last_checked = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    leagues = db.relationship('BowlerLeague', backref='bowler', lazy='dynamic', cascade='all, delete-orphan')
+    attendances = db.relationship('Attendance', backref='bowler', lazy='dynamic', cascade='all, delete-orphan')
+    locker_rentals = db.relationship('LockerRental', backref='bowler', lazy='dynamic')
+
+class BowlerLeague(db.Model):
+    """Association table for bowlers and leagues"""
+    id = db.Column(db.Integer, primary_key=True)
+    bowler_id = db.Column(db.Integer, db.ForeignKey('bowler.id'))
+    league_id = db.Column(db.Integer, db.ForeignKey('league.id'))
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    balance_owing = db.Column(db.Float, default=0)
+    joined_date = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Attendance(db.Model):
+    """Attendance and payment tracking"""
+    id = db.Column(db.Integer, primary_key=True)
+    bowler_id = db.Column(db.Integer, db.ForeignKey('bowler.id'))
+    league_id = db.Column(db.Integer, db.ForeignKey('league.id'))
+    week_number = db.Column(db.Integer)
+    date = db.Column(db.Date)
+    status = db.Column(db.String(20))  # paid, missed, fixed, na
+    payment_method = db.Column(db.String(20))  # cash, card, transfer
+    amount_paid = db.Column(db.Float, default=0)
+    fine_applied = db.Column(db.Boolean, default=False)
+    fine_paid = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    modified_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+class Locker(db.Model):
+    """Locker model"""
+    id = db.Column(db.Integer, primary_key=True)
+    number = db.Column(db.String(20), unique=True, nullable=False)
+    location = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='available')  # available, occupied, maintenance
+    rental_rate = db.Column(db.Float)
+    rental_period = db.Column(db.String(20))  # monthly, quarterly, annual
+    
+    # Relationships
+    rentals = db.relationship('LockerRental', backref='locker', lazy='dynamic')
+
+class LockerRental(db.Model):
+    """Locker rental tracking"""
+    id = db.Column(db.Integer, primary_key=True)
+    locker_id = db.Column(db.Integer, db.ForeignKey('locker.id'))
+    bowler_id = db.Column(db.Integer, db.ForeignKey('bowler.id'))
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    payment_status = db.Column(db.String(20))  # paid, overdue, pending
+    amount_paid = db.Column(db.Float)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# ============================================
+# AUTHENTICATION
+# ============================================
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+def admin_required(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if current_user.role != 'admin':
+            flash('You need administrator privileges to access this page.', 'danger')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def log_action(action, details=""):
+    """Log user actions for audit trail"""
+    if current_user.is_authenticated:
+        log = AuditLog(
+            user_id=current_user.id,
+            action=action,
+            details=details,
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        db.session.commit()
+        logging.info(f"User {current_user.username}: {action} - {details}")
+
+# ============================================
+# ROUTES - Authentication
+# ============================================
+
+@app.route('/')
+def index():
+    """Landing page"""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return render_template('index.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """User login"""
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        user = User.query.filter_by(username=username, is_active=True).first()
+        
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user, remember=True)
+            user.last_login = datetime.utcnow()
+            db.session.commit()
+            log_action('LOGIN', f'User {username} logged in')
+            
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password', 'danger')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    """User logout"""
+    log_action('LOGOUT', f'User {current_user.username} logged out')
+    logout_user()
+    return redirect(url_for('index'))
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    """Main dashboard"""
+    # Get summary statistics
+    total_leagues = League.query.filter_by(is_active=True).count()
+    total_bowlers = Bowler.query.count()
+    
+    # Get TBA registration status summary
+    valid_tba = Bowler.query.filter_by(tba_status='valid').count()
+    invalid_tba = Bowler.query.filter_by(tba_status='invalid').count()
+    pending_tba = Bowler.query.filter_by(tba_status='pending').count()
+    
+    # Get active leagues
+    active_leagues = League.query.filter_by(is_active=True).order_by(League.start_date.desc()).limit(5).all()
+    
+    # Get recent audit logs
+    recent_logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(10).all()
+    
+    return render_template('dashboard.html',
+                         total_leagues=total_leagues,
+                         total_bowlers=total_bowlers,
+                         valid_tba=valid_tba,
+                         invalid_tba=invalid_tba,
+                         pending_tba=pending_tba,
+                         active_leagues=active_leagues,
+                         recent_logs=recent_logs)
+
+# ============================================
+# ROUTES - League Management
+# ============================================
+
+@app.route('/leagues')
+@login_required
+def leagues():
+    """View all leagues"""
+    all_leagues = League.query.order_by(League.start_date.desc()).all()
+    return render_template('leagues/index.html', leagues=all_leagues)
+
+@app.route('/leagues/create', methods=['GET', 'POST'])
+@login_required
+def create_league():
+    """Create new league wizard"""
+    if request.method == 'POST':
+        league = League(
+            name=request.form.get('name'),
+            start_date=datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date(),
+            finish_date=datetime.strptime(request.form.get('finish_date'), '%Y-%m-%d').date(),
+            social_fee=float(request.form.get('social_fee', 0)),
+            bowling_fee=float(request.form.get('bowling_fee', 0)),
+            has_fines=request.form.get('has_fines') == 'on',
+            fine_amount=float(request.form.get('fine_amount', 0)) if request.form.get('has_fines') == 'on' else 0,
+            league_type=request.form.get('league_type'),
+            players_per_team=int(request.form.get('players_per_team', 0)) if request.form.get('league_type') == 'teams' else None
+        )
+        
+        db.session.add(league)
+        db.session.commit()
+        
+        log_action('CREATE_LEAGUE', f'Created league: {league.name}')
+        flash(f'League "{league.name}" created successfully!', 'success')
+        
+        return redirect(url_for('leagues'))
+    
+    return render_template('leagues/create.html')
+
+@app.route('/leagues/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_league(id):
+    """Edit existing league"""
+    league = League.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        league.name = request.form.get('name')
+        league.start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        league.finish_date = datetime.strptime(request.form.get('finish_date'), '%Y-%m-%d').date()
+        league.social_fee = float(request.form.get('social_fee', 0))
+        league.bowling_fee = float(request.form.get('bowling_fee', 0))
+        league.has_fines = request.form.get('has_fines') == 'on'
+        league.fine_amount = float(request.form.get('fine_amount', 0)) if request.form.get('has_fines') == 'on' else 0
+        
+        db.session.commit()
+        log_action('EDIT_LEAGUE', f'Edited league: {league.name}')
+        flash('League updated successfully!', 'success')
+        
+        return redirect(url_for('leagues'))
+    
+    return render_template('leagues/edit.html', league=league)
+
+@app.route('/leagues/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_league(id):
+    """Delete league"""
+    league = League.query.get_or_404(id)
+    league_name = league.name
+    
+    db.session.delete(league)
+    db.session.commit()
+    
+    log_action('DELETE_LEAGUE', f'Deleted league: {league_name}')
+    flash(f'League "{league_name}" deleted successfully!', 'success')
+    
+    return redirect(url_for('leagues'))
+
+# ============================================
+# ROUTES - Bowler Management
+# ============================================
+
+@app.route('/bowlers')
+@login_required
+def bowlers():
+    """View all bowlers"""
+    all_bowlers = Bowler.query.order_by(Bowler.surname, Bowler.first_name).all()
+    return render_template('bowlers/index.html', bowlers=all_bowlers)
+
+@app.route('/bowlers/create', methods=['GET', 'POST'])
+@login_required
+def create_bowler():
+    """Add new bowler"""
+    if request.method == 'POST':
+        bowler = Bowler(
+            registration_number=request.form.get('registration_number'),
+            first_name=request.form.get('first_name'),
+            surname=request.form.get('surname'),
+            sex=request.form.get('sex'),
+            email=request.form.get('email'),
+            birthday=datetime.strptime(request.form.get('birthday'), '%Y-%m-%d').date() if request.form.get('birthday') else None,
+            address=request.form.get('address'),
+            suburb=request.form.get('suburb'),
+            state=request.form.get('state'),
+            postcode=request.form.get('postcode'),
+            phone=request.form.get('phone')
+        )
+        
+        db.session.add(bowler)
+        db.session.commit()
+        
+        # Verify TBA registration
+        verify_tba_registration(bowler.id)
+        
+        log_action('CREATE_BOWLER', f'Created bowler: {bowler.first_name} {bowler.surname}')
+        flash(f'Bowler "{bowler.first_name} {bowler.surname}" added successfully!', 'success')
+        
+        return redirect(url_for('bowlers'))
+    
+    return render_template('bowlers/create.html')
+
+@app.route('/bowlers/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_bowler(id):
+    """Edit bowler details"""
+    bowler = Bowler.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        bowler.first_name = request.form.get('first_name')
+        bowler.surname = request.form.get('surname')
+        bowler.registration_number = request.form.get('registration_number')
+        bowler.sex = request.form.get('sex')
+        bowler.email = request.form.get('email')
+        bowler.phone = request.form.get('phone')
+        bowler.address = request.form.get('address')
+        bowler.suburb = request.form.get('suburb')
+        bowler.state = request.form.get('state')
+        bowler.postcode = request.form.get('postcode')
+        
+        if request.form.get('birthday'):
+            bowler.birthday = datetime.strptime(request.form.get('birthday'), '%Y-%m-%d').date()
+        
+        db.session.commit()
+        
+        # Re-verify TBA registration if number changed
+        verify_tba_registration(bowler.id)
+        
+        log_action('EDIT_BOWLER', f'Edited bowler: {bowler.first_name} {bowler.surname}')
+        flash('Bowler updated successfully!', 'success')
+        
+        return redirect(url_for('bowlers'))
+    
+    return render_template('bowlers/edit.html', bowler=bowler)
+
+@app.route('/bowlers/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_bowler(id):
+    """Delete bowler"""
+    bowler = Bowler.query.get_or_404(id)
+    name = f"{bowler.first_name} {bowler.surname}"
+    
+    db.session.delete(bowler)
+    db.session.commit()
+    
+    log_action('DELETE_BOWLER', f'Deleted bowler: {name}')
+    flash(f'Bowler "{name}" deleted successfully!', 'success')
+    
+    return redirect(url_for('bowlers'))
+
+@app.route('/bowlers/import', methods=['GET', 'POST'])
+@login_required
+def import_bowlers():
+    """Import bowlers from CSV"""
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('No file selected', 'danger')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            flash('No file selected', 'danger')
+            return redirect(request.url)
+        
+        if file and file.filename.endswith('.csv'):
+            stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+            csv_reader = csv.DictReader(stream)
+            
+            count = 0
+            errors = []
+            
+            for row in csv_reader:
+                try:
+                    # Check if bowler already exists
+                    existing = Bowler.query.filter_by(registration_number=row.get('Registration#')).first()
+                    
+                    if not existing:
+                        bowler = Bowler(
+                            registration_number=row.get('Registration#'),
+                            first_name=row.get('First Name'),
+                            surname=row.get('Surname'),
+                            sex=row.get('SEX'),
+                            email=row.get('Email'),
+                            birthday=datetime.strptime(row.get('Birthday'), '%d/%m/%Y').date() if row.get('Birthday') else None,
+                            address=row.get('Address'),
+                            suburb=row.get('Suburb'),
+                            state=row.get('State'),
+                            postcode=row.get('P/C'),
+                            phone=row.get('Phone')
+                        )
+                        db.session.add(bowler)
+                        count += 1
+                except Exception as e:
+                    errors.append(f"Error importing row: {str(e)}")
+            
+            db.session.commit()
+            
+            # Verify TBA registrations for new bowlers
+            new_bowlers = Bowler.query.filter_by(tba_status='pending').all()
+            for bowler in new_bowlers:
+                verify_tba_registration(bowler.id)
+            
+            log_action('IMPORT_BOWLERS', f'Imported {count} bowlers')
+            
+            if errors:
+                flash(f'Imported {count} bowlers with {len(errors)} errors', 'warning')
+            else:
+                flash(f'Successfully imported {count} bowlers!', 'success')
+            
+            return redirect(url_for('bowlers'))
+    
+    return render_template('bowlers/import.html')
+
+def verify_tba_registration(bowler_id):
+    """Verify TBA registration status"""
+    bowler = Bowler.query.get(bowler_id)
+    if not bowler or not bowler.registration_number:
+        return
+    
+    try:
+        # Simulate TBA verification (replace with actual API call)
+        # In production, this would call tenpinresults.com.au API
+        import random
+        bowler.tba_status = random.choice(['valid', 'invalid', 'valid', 'valid'])  # 75% valid for simulation
+        bowler.tba_last_checked = datetime.utcnow()
+        db.session.commit()
+    except Exception as e:
+        logging.error(f"TBA verification failed for bowler {bowler_id}: {str(e)}")
+
+@app.route('/bowlers/verify-tba', methods=['POST'])
+@login_required
+def verify_all_tba():
+    """Verify all TBA registrations"""
+    bowlers = Bowler.query.all()
+    count = 0
+    
+    for bowler in bowlers:
+        verify_tba_registration(bowler.id)
+        count += 1
+    
+    log_action('VERIFY_TBA', f'Verified {count} TBA registrations')
+    flash(f'Verified {count} TBA registrations', 'success')
+    
+    return redirect(url_for('bowlers'))
+
+# ============================================
+# ROUTES - Attendance & Payment
+# ============================================
+
+@app.route('/attendance/<int:league_id>')
+@login_required
+def attendance(league_id):
+    """Attendance and payment grid"""
+    league = League.query.get_or_404(league_id)
+    
+    # Get all bowlers in this league
+    bowler_leagues = BowlerLeague.query.filter_by(league_id=league_id).all()
+    
+    # Calculate weeks in league
+    weeks = []
+    current_date = league.start_date
+    week_num = 1
+    while current_date <= league.finish_date:
+        weeks.append({'number': week_num, 'date': current_date})
+        current_date += timedelta(days=7)
+        week_num += 1
+    
+    # Get attendance records
+    attendance_records = {}
+    for bl in bowler_leagues:
+        bowler_attendance = Attendance.query.filter_by(
+            bowler_id=bl.bowler_id, 
+            league_id=league_id
+        ).all()
+        attendance_records[bl.bowler_id] = {a.week_number: a for a in bowler_attendance}
+    
+    return render_template('attendance/grid.html', 
+                         league=league,
+                         bowler_leagues=bowler_leagues,
+                         weeks=weeks,
+                         attendance_records=attendance_records)
+
+@app.route('/attendance/update', methods=['POST'])
+@login_required
+def update_attendance():
+    """Update attendance status via AJAX"""
+    data = request.json
+    
+    bowler_id = data.get('bowler_id')
+    league_id = data.get('league_id')
+    week_number = data.get('week_number')
+    status = data.get('status')
+    
+    # Find or create attendance record
+    attendance = Attendance.query.filter_by(
+        bowler_id=bowler_id,
+        league_id=league_id,
+        week_number=week_number
+    ).first()
+    
+    if not attendance:
+        attendance = Attendance(
+            bowler_id=bowler_id,
+            league_id=league_id,
+            week_number=week_number,
+            status=status
+        )
+        db.session.add(attendance)
+    else:
+        attendance.status = status
+    
+    attendance.modified_by = current_user.id
+    
+    # Update balance owing
+    update_bowler_balance(bowler_id, league_id)
+    
+    db.session.commit()
+    
+    log_action('UPDATE_ATTENDANCE', f'Updated attendance for bowler {bowler_id}, week {week_number}')
+    
+    return jsonify({'success': True, 'message': 'Attendance updated'})
+
+def update_bowler_balance(bowler_id, league_id):
+    """Calculate and update bowler's balance"""
+    bowler_league = BowlerLeague.query.filter_by(
+        bowler_id=bowler_id,
+        league_id=league_id
+    ).first()
+    
+    if not bowler_league:
+        return
+    
+    league = League.query.get(league_id)
+    
+    # Calculate total owed
+    missed_weeks = Attendance.query.filter_by(
+        bowler_id=bowler_id,
+        league_id=league_id,
+        status='missed'
+    ).count()
+    
+    total_owed = missed_weeks * (league.social_fee + league.bowling_fee)
+    
+    # Add fines if applicable
+    if league.has_fines:
+        unpaid_fines = Attendance.query.filter_by(
+            bowler_id=bowler_id,
+            league_id=league_id,
+            status='missed',
+            fine_paid=False
+        ).count()
+        total_owed += unpaid_fines * league.fine_amount
+    
+    # Calculate total paid
+    total_paid = db.session.query(db.func.sum(Attendance.amount_paid)).filter_by(
+        bowler_id=bowler_id,
+        league_id=league_id
+    ).scalar() or 0
+    
+    bowler_league.balance_owing = total_owed - total_paid
+    db.session.commit()
+
+# ============================================
+# ROUTES - Locker Management
+# ============================================
+
+@app.route('/lockers')
+@login_required
+def lockers():
+    """View all lockers"""
+    all_lockers = Locker.query.order_by(Locker.number).all()
+    return render_template('lockers/index.html', lockers=all_lockers)
+
+@app.route('/lockers/create', methods=['GET', 'POST'])
+@login_required
+def create_locker():
+    """Add new locker"""
+    if request.method == 'POST':
+        locker = Locker(
+            number=request.form.get('number'),
+            location=request.form.get('location'),
+            rental_rate=float(request.form.get('rental_rate', 0)),
+            rental_period=request.form.get('rental_period')
+        )
+        
+        db.session.add(locker)
+        db.session.commit()
+        
+        log_action('CREATE_LOCKER', f'Created locker: {locker.number}')
+        flash(f'Locker {locker.number} created successfully!', 'success')
+        
+        return redirect(url_for('lockers'))
+    
+    return render_template('lockers/create.html')
+
+@app.route('/lockers/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_locker(id):
+    """Edit locker details"""
+    locker = Locker.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        locker.number = request.form.get('number')
+        locker.location = request.form.get('location')
+        locker.rental_rate = float(request.form.get('rental_rate', 0))
+        locker.rental_period = request.form.get('rental_period')
+        
+        db.session.commit()
+        log_action('EDIT_LOCKER', f'Edited locker: {locker.number}')
+        flash('Locker updated successfully!', 'success')
+        
+        return redirect(url_for('lockers'))
+    
+    return render_template('lockers/edit.html', locker=locker)
+
+@app.route('/lockers/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_locker(id):
+    """Delete locker"""
+    locker = Locker.query.get_or_404(id)
+    locker_number = locker.number
+    
+    db.session.delete(locker)
+    db.session.commit()
+    
+    log_action('DELETE_LOCKER', f'Deleted locker: {locker_number}')
+    flash(f'Locker {locker_number} deleted successfully!', 'success')
+    
+    return redirect(url_for('lockers'))
+
+@app.route('/lockers/<int:id>/rent', methods=['GET', 'POST'])
+@login_required
+def rent_locker(id):
+    """Rent locker to bowler"""
+    locker = Locker.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        rental = LockerRental(
+            locker_id=locker.id,
+            bowler_id=int(request.form.get('bowler_id')),
+            start_date=datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date(),
+            end_date=datetime.strptime(request.form.get('end_date'), '%Y-%m-%d').date(),
+            payment_status='paid' if request.form.get('paid_now') == 'on' else 'pending',
+            amount_paid=float(request.form.get('amount_paid', 0))
+        )
+        
+        locker.status = 'occupied'
+        
+        db.session.add(rental)
+        db.session.commit()
+        
+        log_action('RENT_LOCKER', f'Rented locker {locker.number}')
+        flash(f'Locker {locker.number} rented successfully!', 'success')
+        
+        return redirect(url_for('lockers'))
+    
+    bowlers = Bowler.query.order_by(Bowler.surname, Bowler.first_name).all()
+    return render_template('lockers/rent.html', locker=locker, bowlers=bowlers)
+
+# ============================================
+# ROUTES - User Management
+# ============================================
+
+@app.route('/users')
+@admin_required
+def users():
+    """View all users (admin only)"""
+    all_users = User.query.all()
+    audit_logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(20).all()
+    return render_template('users/index.html', users=all_users, audit_logs=audit_logs)
+
+@app.route('/users/create', methods=['GET', 'POST'])
+@admin_required
+def create_user():
+    """Create new user (admin only)"""
+    if request.method == 'POST':
+        user = User(
+            username=request.form.get('username'),
+            email=request.form.get('email'),
+            password_hash=generate_password_hash(request.form.get('password')),
+            role=request.form.get('role', 'staff')
+        )
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        log_action('CREATE_USER', f'Created user: {user.username}')
+        flash(f'User "{user.username}" created successfully!', 'success')
+        
+        return redirect(url_for('users'))
+    
+    return render_template('users/create.html')
+
+@app.route('/users/create', methods=['GET', 'POST'])
+@admin_required
+def create_user():
+    """Create new user (admin only)"""
+    if request.method == 'POST':
+        user = User(
+            username=request.form.get('username'),
+            email=request.form.get('email'),
+            password_hash=generate_password_hash(request.form.get('password')),
+            role=request.form.get('role', 'staff')
+        )
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        log_action('CREATE_USER', f'Created user: {user.username}')
+        flash(f'User "{user.username}" created successfully!', 'success')
+        
+        return redirect(url_for('users'))
+    
+    return render_template('users/create.html')
+
+@app.route('/users/<int:id>/edit', methods=['GET', 'POST'])
+@admin_required
+def edit_user(id):
+    """Edit user details (admin only)"""
+    user = User.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        user.email = request.form.get('email')
+        
+        # Only update role if not editing self
+        if user.id != current_user.id:
+            user.role = request.form.get('role', 'staff')
+            user.is_active = request.form.get('is_active') == 'on'
+        
+        # Update password if provided
+        new_password = request.form.get('new_password')
+        if new_password:
+            user.password_hash = generate_password_hash(new_password)
+        
+        db.session.commit()
+        log_action('EDIT_USER', f'Edited user: {user.username}')
+        flash('User updated successfully!', 'success')
+        
+        return redirect(url_for('users'))
+    
+    return render_template('users/edit.html', user=user)
+
+@app.route('/users/<int:id>/activate', methods=['POST'])
+@admin_required
+def activate_user(id):
+    """Activate user account"""
+    user = User.query.get_or_404(id)
+    user.is_active = True
+    db.session.commit()
+    
+    log_action('ACTIVATE_USER', f'Activated user: {user.username}')
+    flash(f'User "{user.username}" activated!', 'success')
+    
+    return redirect(url_for('users'))
+
+@app.route('/users/<int:id>/deactivate', methods=['POST'])
+@admin_required
+def deactivate_user(id):
+    """Deactivate user account"""
+    user = User.query.get_or_404(id)
+    
+    if user.id == current_user.id:
+        flash('You cannot deactivate your own account!', 'danger')
+    else:
+        user.is_active = False
+        db.session.commit()
+        
+        log_action('DEACTIVATE_USER', f'Deactivated user: {user.username}')
+        flash(f'User "{user.username}" deactivated!', 'success')
+    
+    return redirect(url_for('users'))
+
+# ============================================
+# ROUTES - Reports
+# ============================================
+
+@app.route('/reports')
+@login_required
+def reports():
+    """Reports dashboard"""
+    return render_template('reports/index.html')
+
+@app.route('/reports/attendance/<int:league_id>')
+@login_required
+def attendance_report(league_id):
+    """Generate attendance report"""
+    league = League.query.get_or_404(league_id)
+    
+    # Get attendance statistics
+    bowler_leagues = BowlerLeague.query.filter_by(league_id=league_id).all()
+    
+    report_data = []
+    for bl in bowler_leagues:
+        bowler = bl.bowler
+        attendance_records = Attendance.query.filter_by(
+            bowler_id=bl.bowler_id,
+            league_id=league_id
+        ).all()
+        
+        paid_count = sum(1 for a in attendance_records if a.status == 'paid')
+        missed_count = sum(1 for a in attendance_records if a.status == 'missed')
+        
+        report_data.append({
+            'bowler': bowler,
+            'paid_weeks': paid_count,
+            'missed_weeks': missed_count,
+            'balance': bl.balance_owing
+        })
+    
+    return render_template('reports/attendance.html', 
+                         league=league,
+                         report_data=report_data)
+
+@app.route('/reports/financial/<int:league_id>')
+@login_required
+def financial_report(league_id):
+    """Generate financial report"""
+    league = League.query.get_or_404(league_id)
+    
+    # Calculate totals
+    total_expected = db.session.query(db.func.sum(
+        BowlerLeague.balance_owing
+    )).filter_by(league_id=league_id).scalar() or 0
+    
+    total_received = db.session.query(db.func.sum(
+        Attendance.amount_paid
+    )).filter_by(league_id=league_id).scalar() or 0
+    
+    total_outstanding = total_expected - total_received
+    
+    return render_template('reports/financial.html',
+                         league=league,
+                         total_expected=total_expected,
+                         total_received=total_received,
+                         total_outstanding=total_outstanding)
+
+# ============================================
+# INITIALIZATION
+# ============================================
+
+def init_db():
+    """Initialize database with default admin user"""
+    with app.app_context():
+        db.create_all()
+        
+        # Create default admin if doesn't exist
+        admin = User.query.filter_by(username='admin').first()
+        if not admin:
+            admin = User(
+                username='admin',
+                email='admin@nqtenpin.com',
+                password_hash=generate_password_hash('admin123'),
+                role='admin'
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("Default admin user created (username: admin, password: admin123)")
+
+if __name__ == '__main__':
+    init_db()
+    app.run(host='0.0.0.0', port=2019, debug=True)

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Leagues - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2><i class="fas fa-bowling-ball me-2"></i>League Management</h2>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('create_league') }}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>Create New League
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover datatable">
+                    <thead>
+                        <tr>
+                            <th>League Name</th>
+                            <th>Type</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Bowlers</th>
+                            <th>Fees</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for league in leagues %}
+                        <tr>
+                            <td>
+                                <strong>{{ league.name }}</strong>
+                            </td>
+                            <td>
+                                {% if league.league_type == 'teams' %}
+                                    <span class="badge bg-info">Teams ({{ league.players_per_team }})</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Singles</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ league.start_date.strftime('%d/%m/%Y') }}</td>
+                            <td>{{ league.finish_date.strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                <span class="badge bg-primary">{{ league.bowler_leagues.count() }}</span>
+                            </td>
+                            <td>
+                                Social: ${{ "%.2f"|format(league.social_fee) }}<br>
+                                Bowling: ${{ "%.2f"|format(league.bowling_fee) }}
+                                {% if league.has_fines %}
+                                    <br>Fine: ${{ "%.2f"|format(league.fine_amount) }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if league.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Archived</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('attendance', league_id=league.id) }}" 
+                                   class="btn btn-sm btn-primary" title="Attendance">
+                                    <i class="fas fa-calendar-check"></i>
+                                </a>
+                                <a href="{{ url_for('add_bowlers_to_league', id=league.id) }}" 
+                                   class="btn btn-sm btn-success" title="Add Bowlers">
+                                    <i class="fas fa-user-plus"></i>
+                                </a>
+                                {% if league.league_type == 'teams' %}
+                                <a href="{{ url_for('manage_teams', league_id=league.id) }}" 
+                                   class="btn btn-sm btn-warning" title="Manage Teams">
+                                    <i class="fas fa-users"></i>
+                                </a>
+                                {% endif %}
+                                <a href="{{ url_for('edit_league', id=league.id) }}" 
+                                   class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('delete_league', id=league.id) }}" 
+                                      style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger delete-confirm" 
+                                            title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

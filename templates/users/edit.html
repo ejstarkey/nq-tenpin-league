@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Edit User - NQ Tenpin{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-lg-6 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-edit me-2"></i>Edit User: {{ user.username }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('edit_user', id=user.id) }}" class="needs-validation" novalidate>
+                        
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" 
+                                   value="{{ user.username }}" disabled>
+                            <small class="text-muted">Username cannot be changed</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address *</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ user.email }}" required>
+                            <div class="invalid-feedback">
+                                Please provide a valid email address.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="role" class="form-label">User Role *</label>
+                            <select class="form-select" id="role" name="role" required 
+                                    {% if user.id == current_user.id %}disabled{% endif %}>
+                                <option value="staff" {% if user.role == 'staff' %}selected{% endif %}>Staff</option>
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrator</option>
+                            </select>
+                            {% if user.id == current_user.id %}
+                                <small class="text-muted">You cannot change your own role</small>
+                            {% endif %}
+                            <div class="invalid-feedback">
+                                Please select a user role.
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <h5 class="mb-3">Change Password (Optional)</h5>
+                        
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password" 
+                                   minlength="8" placeholder="Leave blank to keep current password">
+                            <div class="invalid-feedback">
+                                Password must be at least 8 characters long.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirm_password" 
+                                   name="confirm_password" placeholder="Re-enter new password">
+                            <div class="invalid-feedback">
+                                Passwords do not match.
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Account Status</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_active" 
+                                       name="is_active" {% if user.is_active %}checked{% endif %}
+                                       {% if user.id == current_user.id %}disabled{% endif %}>
+                                <label class="form-check-label" for="is_active">
+                                    Account is active
+                                </label>
+                            </div>
+                            {% if user.id == current_user.id %}
+                                <small class="text-muted">You cannot deactivate your own account</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <p class="mb-1"><strong>Created:</strong> {{ user.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            <p class="mb-0"><strong>Last Login:</strong> 
+                                {% if user.last_login %}
+                                    {{ user.last_login.strftime('%Y-%m-%d %H:%M') }}
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </p>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('users') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-check me-2"></i>Update User
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Password confirmation validation
+document.getElementById('confirm_password').addEventListener('input', function() {
+    var newPassword = document.getElementById('new_password').value;
+    var confirmPassword = this.value;
+    
+    if (newPassword && newPassword !== confirmPassword) {
+        this.setCustomValidity('Passwords do not match');
+    } else {
+        this.setCustomValidity('');
+    }
+});
+
+document.getElementById('new_password').addEventListener('input', function() {
+    var confirmPassword = document.getElementById('confirm_password').value;
+    if (confirmPassword && this.value !== confirmPassword) {
+        document.getElementById('confirm_password').setCustomValidity('Passwords do not match');
+    } else {
+        document.getElementById('confirm_password').setCustomValidity('');
+    }
+});
+</script>
+{% endblock %}
