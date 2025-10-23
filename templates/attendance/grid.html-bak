@@ -52,13 +52,6 @@
         padding: 2px 6px;
         font-size: 10px;
     }
-
-    .bowler-name {
-    min-width: 180px !important;
-    width: auto !important;
-    white-space: nowrap;
-    }
-    
 </style>
 {% endblock %}
 
@@ -125,16 +118,17 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% set ns = namespace(current_team=None) %}
+                        {% set current_team = '' %}
                         {% for bl in bowler_leagues %}
                             {% if league.league_type == 'teams' %}
                                 {% set this_team = bl.team.name if bl.team else 'UNASSIGNED' %}
-                                {% if this_team != ns.current_team %}
-                                    {% set ns.current_team = this_team %}
-                                    <tr class="team-header-row">
-                                        <td colspan="{{ weeks|length + 2 }}" style="background-color: #e91e8c !important; color: #ffffff !important; font-weight: bold; font-size: 14px; padding: 8px; text-align: left;">
-                                            <i class="fas fa-users me-2"></i>{{ ns.current_team }}
+                                {% if this_team != current_team %}
+                                    {% set current_team = this_team %}
+                                    <tr style="background-color: #000000;">
+                                        <td class="fixed-column-left" style="background-color: #000000 !important; color: #e91e8c !important; font-weight: bold; font-size: 14px; padding: 8px;">
+                                            {{ current_team }}
                                         </td>
+                                        <td colspan="{{ weeks|length + 1 }}" style="background-color: #000000;"></td>
                                     </tr>
                                 {% endif %}
                             {% endif %}
